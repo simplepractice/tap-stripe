@@ -25,10 +25,7 @@ STREAM_SDK_OBJECTS = {
     'invoices': {'sdk_object': stripe.Invoice, 'key_properties': ['id']},
     'invoice_items': {'sdk_object': stripe.InvoiceItem, 'key_properties': ['id']},
     'invoice_line_items': {'sdk_object': stripe.InvoiceLineItem,
-                           'key_properties': ['id',
-                                              'invoice',
-                                              'subscription',
-                                              'subscription_item']},
+                           'key_properties': ['id', 'invoice']},
     'transfers': {'sdk_object': stripe.Transfer, 'key_properties': ['id']},
     'coupons': {'sdk_object': stripe.Coupon, 'key_properties': ['id']},
     'subscriptions': {'sdk_object': stripe.Subscription, 'key_properties': ['id']},
@@ -38,7 +35,8 @@ STREAM_SDK_OBJECTS = {
     'payouts': {'sdk_object': stripe.Payout, 'key_properties': ['id']},
     # Each Payout has many transactions that are not accounted
     # for unless you ask for balance/history with a payout id
-    'payout_transactions': {'sdk_object': stripe.BalanceTransaction, 'key_properties': ['id']}
+    'payout_transactions': {'sdk_object': stripe.BalanceTransaction, 'key_properties': ['id']},
+    'disputes': {'sdk_object': stripe.Dispute, 'key_properties': ['id']}
 }
 
 # I think this can be merged into the above structure
@@ -59,6 +57,7 @@ STREAM_REPLICATION_KEY = {
     # invoice_line_items is bookmarked based on parent invoices,
     # no replication key value on the object itself
     #'invoice_line_items': 'date'
+    'disputes': 'created',
 }
 
 STREAM_TO_TYPE_FILTER = {
@@ -71,6 +70,8 @@ STREAM_TO_TYPE_FILTER = {
     'subscriptions': {'type': 'customer.subscription.*', 'object': 'subscription'},
     'payouts': {'type': 'payout.*', 'object': 'transfer'},
     'transfers': {'type': 'transfer.*', 'object': 'transfer'},
+    'disputes': {'type': 'charge.dispute.*', 'object': 'dispute'}
+    # pylint: disable=bad-continuation
     # Cannot find evidence of these streams having events associated:
     # subscription_items - appears on subscriptions events
     # balance_transactions - seems to be immutable
@@ -587,14 +588,6 @@ def sync_sub_stream(sub_stream_name, parent_obj, updates=False):
             if sub_stream_name == "invoice_line_items":
                 # Synthetic addition of a key to the record we sync
                 obj_ad_dict["invoice"] = parent_obj.id
-
-                # Line item PKs must be a combination of all unique IDs associated
-                # with the different types a line item can be
-                # If they are not populated, they must be added here.
-                if "subscription" not in obj_ad_dict:
-                    obj_ad_dict["subscription"] = None
-                if "subscription_item" not in obj_ad_dict:
-                    obj_ad_dict["subscription_item"] = None
             elif sub_stream_name == "payout_transactions":
                 # payout_transactions is a join table
                 obj_ad_dict = {"id": obj_ad_dict['id'], "payout_id": parent_obj['id']}
