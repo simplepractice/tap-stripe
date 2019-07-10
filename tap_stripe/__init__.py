@@ -466,7 +466,7 @@ def sync_stream(stream_name, table_name=None):
                 # sync sub streams if its selected and the parent object
                 # is greater than its bookmark
                 if should_sync_sub_stream and stream_obj_created > sub_stream_bookmark:
-                    sync_sub_stream(sub_stream_name, stream_obj)
+                    sync_sub_stream(sub_stream_name, stream_obj, table_name=table_name)
 
             # Update stream/sub-streams bookmarks as stop window
             if stop_window > stream_bookmark:
@@ -505,7 +505,7 @@ def get_object_list_iterator(object_list):
         return [object_list]
     return object_list
 
-def sync_sub_stream(sub_stream_name, parent_obj, updates=False):
+def sync_sub_stream(sub_stream_name, parent_obj, updates=False, table_name=None):
     """
     Given a parent object, retrieve its values for the specified substream.
     """
@@ -602,6 +602,7 @@ def sync_sub_stream(sub_stream_name, parent_obj, updates=False):
             if "id" in rec:
                 singer.write_record(sub_stream_name,
                                     rec,
+                                    stream_alias=table_name,
                                     time_extracted=extraction_time)
             if updates:
                 Context.updated_counts[sub_stream_name] += 1
@@ -631,7 +632,7 @@ def should_sync_event(events_obj, object_type, id_to_created_map):
     return should_sync
 
 
-def sync_event_updates(stream_name):
+def sync_event_updates(stream_name, table_name=None):
     '''
     Get updates via events endpoint
 
@@ -697,6 +698,7 @@ def sync_event_updates(stream_name):
                     if rec.get('id') is not None:
                         singer.write_record(stream_name,
                                             rec,
+                                            stream_alias=table_name,
                                             time_extracted=extraction_time)
                         Context.updated_counts[stream_name] += 1
 
@@ -704,6 +706,7 @@ def sync_event_updates(stream_name):
                             if event_resource_obj:
                                 sync_sub_stream(sub_stream_name,
                                                 event_resource_obj,
+                                                table_name=table_name,
                                                 updates=True)
             if events_obj.created > max_created:
                 max_created = events_obj.created
@@ -740,7 +743,7 @@ def sync():
             sync_stream(stream_name, table_name=table_name)
             # This prevents us from retrieving 'events.events'
             if STREAM_TO_TYPE_FILTER.get(stream_name):
-                sync_event_updates(stream_name)
+                sync_event_updates(stream_name, table_name=table_name)
 
 @utils.handle_top_exception(LOGGER)
 def main():
